@@ -1,0 +1,121 @@
+"""
+FAIR-LLM Demo: Intelligent Class Scheduling Agent
+--------------------------------------------------
+
+This demo assembles a reasoning agent that builds a valid 2-day class schedule for 10 students.
+The system uses multiple modular tools to coordinate scheduling, validation, and formatting,
+demonstrating agentic reasoning and tool orchestration.
+
+Agent Responsibilities:
+    1. Retrieve available classes and capacities
+    2. Generate a fair 2-day schedule ensuring:
+        - 6 unique classes per day
+        - 10 students total
+        - Each student takes exactly 5 total classes (at least 1 per day)
+        - No duplicate classes per student
+        - No overbooked classes
+    3. Format the result in a structured (table-like) format
+"""
+
+import asyncio
+from fairlib import (
+    ToolRegistry,
+    ToolExecutor,
+    WorkingMemory,
+    SimpleAgent,
+    RoleDefinition,
+    HuggingFaceAdapter,
+    SimpleReActPlanner,
+)
+
+# --- Step 2: Import custom FairLLM tools for scheduling ---
+from tools.class_retrieval import ClassRetrievalTool
+from tools.scheduler import SchedulerTool
+from tools.checkers import (
+    ClassNumberCheckerTool,
+    UniqueAttendanceCheckerTool,
+    ClassAttendanceCheckerTool,
+    ClassCounterCheckerTool,
+    ScheduleValidatorTool,
+)
+from tools.formatter import StructuredOutputFormatterTool
+
+
+async def main():
+    """Main entry point for the FairLLM Class Scheduler demo."""
+    print("🏫 Initializing the FAIR-LLM Class Scheduling Agent...")
+
+    # === (a) Brain: Language Model ===
+    llm = HuggingFaceAdapter("TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+
+    # === (b) Toolbelt: Register all scheduling tools ===
+    tool_registry = ToolRegistry()
+
+    tool_registry.register_tool(ClassRetrievalTool())
+    tool_registry.register_tool(SchedulerTool())
+    tool_registry.register_tool(ClassNumberCheckerTool())
+    tool_registry.register_tool(UniqueAttendanceCheckerTool())
+    tool_registry.register_tool(ClassAttendanceCheckerTool())
+    tool_registry.register_tool(ClassCounterCheckerTool())
+    tool_registry.register_tool(ScheduleValidatorTool())
+    tool_registry.register_tool(StructuredOutputFormatterTool())
+
+    print(f"✅ Registered tools: {[t.name for t in tool_registry.get_all_tools().values()]}")
+
+    # === (c) Hands: Tool Executor ===
+    executor = ToolExecutor(tool_registry)
+
+    # === (d) Memory: Conversation Context ===
+    memory = WorkingMemory()
+
+    # === (e) Mind: Reasoning Engine ===
+    planner = SimpleReActPlanner(llm, tool_registry)
+
+    # Modify agent role / personality
+    planner.prompt_builder.role_definition = RoleDefinition(
+        "You are an intelligent scheduling assistant tasked with generating valid, fair 2-day "
+        "class schedules for 10 students. Each student must have exactly 5 unique classes "
+        "across two days, with at least one per day. Use your available tools to build, validate, "
+        "and format the schedule step-by-step."
+    )
+
+    # === (f) Assemble the Agent ===
+    agent = SimpleAgent(
+        llm=llm,
+        planner=planner,
+        tool_executor=executor,
+        memory=memory,
+        max_steps=12,
+    )
+
+    print("🎓 Agent is ready to create schedules.")
+    print("💬 Type 'generate schedule' to create one, or 'quit' to exit.\n")
+
+    # === (g) Interaction Loop ===
+    while True:
+        try:
+            user_input = input("👤 You: ").strip().lower()
+            if user_input in ["quit", "exit"]:
+                print("🤖 Agent: Goodbye! 👋")
+                break
+
+            if "generate" in user_input:
+                print("⚙️ Generating schedule...")
+                response = await agent.arun(
+                    "Generate a 2-day class schedule for 10 students. "
+                    "Each student must have at least one class per day, "
+                    "take exactly 5 unique classes total, and classes cannot exceed their capacity."
+                )
+                print(f"🤖 Agent:\n{response}")
+            else:
+                print("🤖 Agent: Please type 'generate schedule' or 'quit'.")
+
+        except KeyboardInterrupt:
+            print("\n🤖 Agent: Session ended by user.")
+            break
+        except Exception as e:
+            print(f"❌ Agent error: {e}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
