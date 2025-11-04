@@ -5,6 +5,9 @@ from tabulate import tabulate
 class StructuredOutputFormatterTool(AbstractTool):
     name = "StructuredOutputFormatterTool"
     description = "Formats the final schedule into a readable table with periods. Input: JSON string of schedule data."
+    
+    # Class variable to store the last formatted output
+    last_formatted_output = None
 
     def use(self, tool_input: str) -> str:
         try:
@@ -56,4 +59,9 @@ class StructuredOutputFormatterTool(AbstractTool):
             return "Error: No valid student schedules found to format"
 
         headers = ["Student", "Day 1 Classes (Period)", "Day 2 Classes (Period)"]
-        return tabulate(table, headers, tablefmt="grid")
+        formatted_output = tabulate(table, headers, tablefmt="grid")
+        
+        # Store the formatted output for later retrieval
+        StructuredOutputFormatterTool.last_formatted_output = formatted_output
+        
+        return formatted_output

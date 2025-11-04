@@ -107,12 +107,14 @@ async def main():
         "5. Use PeriodConflictCheckerTool with ONLY the schedule JSON (no class_data)\n"
         "6. Use StructuredOutputFormatterTool with ONLY the schedule JSON (no class_data)\n"
         "7. Use OutputValidatorTool with schedule JSON and formatted table\n"
-        "8. In your Final Answer, present the formatted table clearly\n\n"
+        "8. For Final Answer: Copy the ENTIRE formatted table from step 6 (StructuredOutputFormatterTool result)\n\n"
         "CRITICAL RULES:\n"
         "- StructuredOutputFormatterTool expects ONLY schedule data, not class_data\n"
         "- Validation tools (steps 3-5) expect ONLY schedule data\n"
         "- Only ClassAttendanceCheckerTool needs both schedule and class_data\n"
-        "- Your final answer must include the complete formatted schedule table!"
+        "- Your Final Answer MUST include the COMPLETE table output from StructuredOutputFormatterTool\n"
+        "- Copy the table EXACTLY as it appears in the tool result, including all borders and formatting\n"
+        "- Do NOT truncate or summarize the table - include EVERY row!"
     )
 
     # === (f) Assemble the Agent ===
@@ -147,40 +149,39 @@ async def main():
                 print("\n🤖 Agent Response:")
                 print("=" * 80)
                 
-                # Try to parse the response as JSON to extract formatted components
-                try:
-                    # Look for JSON structure in the response
-                    json_match = re.search(r'\{[\s\S]*\}', response)
-                    if json_match:
-                        parsed = json.loads(json_match.group())
-                        
-                        # Display validation report
-                        if "validation_report" in parsed:
-                            report = parsed["validation_report"]
-                            print("\n📊 Validation Report:")
-                            print(f"   Clarity Score: {report.get('clarity_score', 'N/A')}/100")
-                            print(f"   Summary: {report.get('summary', 'N/A')}")
-                            print(f"   Students: {report.get('student_count', 'N/A')}")
-                            print(f"   Total Classes: {report.get('total_classes', 'N/A')}")
+                # Get the formatted table directly from the tool's stored output
+                formatted_table = StructuredOutputFormatterTool.last_formatted_output
+                
+                # Display the formatted table if available
+                if formatted_table:
+                    print("\n📅 Final Schedule:")
+                    print(formatted_table)
+                elif "+-" in response and "|" in response:
+                    # Fallback: if response contains a complete table
+                    print("\n📅 Final Schedule:")
+                    print(response)
+                else:
+                    # Try to parse as JSON (for validation reports, etc.)
+                    try:
+                        json_match = re.search(r'\{[\s\S]*\}', response)
+                        if json_match:
+                            parsed = json.loads(json_match.group())
                             
-                            if report.get('issues'):
-                                print(f"\n   ⚠️ Issues: {', '.join(report['issues'])}")
-                            if report.get('suggestions'):
-                                print(f"   💡 Suggestions: {', '.join(report['suggestions'])}")
-                        
-                        # Display formatted schedule (with proper line breaks)
-                        if "formatted_schedule" in parsed:
-                            print("\n📅 Final Schedule:")
-                            print(parsed["formatted_schedule"])
+                            if "validation_report" in parsed:
+                                report = parsed["validation_report"]
+                                print("\n📊 Validation Report:")
+                                print(f"   Clarity Score: {report.get('clarity_score', 'N/A')}/100")
+                                print(f"   Summary: {report.get('summary', 'N/A')}")
+                            
+                            if "formatted_schedule" in parsed:
+                                print("\n📅 Final Schedule:")
+                                print(parsed["formatted_schedule"])
+                            else:
+                                print(f"\n{response}")
                         else:
                             print(f"\n{response}")
-                    else:
-                        # If not JSON, just print the response
+                    except (json.JSONDecodeError, Exception):
                         print(f"\n{response}")
-                        
-                except (json.JSONDecodeError, Exception):
-                    # If parsing fails, display the raw response
-                    print(f"\n{response}")
                 
                 print("\n" + "=" * 80)
             else:
