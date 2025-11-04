@@ -1,28 +1,31 @@
-from fairlib import FairLLMTool
+import json
+from fairlib import AbstractTool
 
-class ClassRetrievalTool(FairLLMTool):
+class ClassRetrievalTool(AbstractTool):
     name = "ClassRetrievalTool"
-    description = "Retrieves class availability and capacity information for each day."
+    description = "Retrieves class availability, capacity, and time period information for each day. No input required."
 
-    def execute(self):
+    def use(self, tool_input: str) -> str:
         """
-        Returns a dictionary of classes offered each day with maximum student capacities.
+        Returns a JSON string of classes offered each day with maximum student capacities and time periods.
+        Format: {"Day": {"ClassName": {"capacity": int, "periods": [period_numbers]}}}
         """
-        return {
+        class_data = {
             "Day1": {
-                "Math": 5,
-                "Science": 6,
-                "History": 4,
-                "Art": 5,
-                "Music": 5,
-                "PE": 8,
+                "Math": {"capacity": 5, "periods": [1, 3, 5]},
+                "Science": {"capacity": 6, "periods": [2, 4]},
+                "History": {"capacity": 4, "periods": [1, 4]},
+                "Art": {"capacity": 5, "periods": [3, 5]},
+                "Music": {"capacity": 5, "periods": [2, 4, 6]},
+                "PE": {"capacity": 8, "periods": [1, 3, 5, 6]},
             },
             "Day2": {
-                "Math": 5,
-                "Biology": 6,
-                "English": 6,
-                "ComputerSci": 5,
-                "Music": 5,
-                "PE": 8,
+                "Math": {"capacity": 5, "periods": [1, 3, 5]},
+                "Biology": {"capacity": 6, "periods": [2, 4]},
+                "English": {"capacity": 6, "periods": [1, 3, 4]},
+                "ComputerSci": {"capacity": 5, "periods": [2, 5, 6]},
+                "Music": {"capacity": 5, "periods": [3, 4, 6]},
+                "PE": {"capacity": 8, "periods": [1, 2, 5]},
             },
         }
+        return json.dumps(class_data)
