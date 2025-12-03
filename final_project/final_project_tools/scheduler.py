@@ -1,10 +1,11 @@
 import random
 import json
+import os
 from fairlib import AbstractTool
 
 class SchedulerTool(AbstractTool):
     name = "SchedulerTool"
-    description = "Generates a preliminary 2-day schedule for 10 students with period assignments. Input: JSON string of class_data from ClassRetrievalTool."
+    description = "Generates a schedule for students with period assignments. Dynamically adapts to system configuration. Input: JSON string of class_data from ClassRetrievalTool."
 
     def use(self, tool_input: str) -> str:
         """
@@ -21,96 +22,104 @@ class SchedulerTool(AbstractTool):
             class_data, idx = decoder.raw_decode(tool_input)
         except (json.JSONDecodeError, ValueError) as e:
             return json.dumps({"error": f"JSON parsing error: {str(e)}"})
-        students = [f"Student{i}" for i in range(1, 11)]
+        
+        # Load system configuration
+        try:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(os.path.dirname(current_dir), "system_config.json")
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+        except:
+            # Default configuration if file not found
+            config = {
+                "num_students": 10,
+                "classes_per_student": 5,
+                "num_days": 2,
+                "min_classes_per_day": 1
+            }
+        
+        # Generate student list based on config
+        students = [f"Student{i}" for i in range(1, config["num_students"] + 1)]
+        
+        # Get list of days from class_data
+        days = list(class_data.keys())
+        
         schedule = {}
         
         # Track remaining capacity for each class per day (NOT per period)
         # Capacity is shared across all periods for a given class
         capacity_tracker = {}
-        for day in ["Day1", "Day2"]:
-            for class_name, info in class_data[day].items():
-                key = (day, class_name)
-                capacity_tracker[key] = info["capacity"]
+        for day in days:
+            if day in class_data:
+                for class_name, info in class_data[day].items():
+                    key = (day, class_name)
+                    capacity_tracker[key] = info["capacity"]
 
         # Assign classes to each student
         for student in students:
-            schedule[student] = {"Day1": [], "Day2": []}
+            # Initialize schedule for all days
+            schedule[student] = {day: [] for day in days}
             assigned_classes = set()  # Track unique classes
             
-            # We need exactly 5 classes, with at least 1 per day
-            target_day1 = random.randint(1, 4)  # 1-4 classes on Day1
-            target_day2 = 5 - target_day1        # Remaining on Day2
+            # Distribute classes across days
+            # Ensure at least min_classes_per_day per day
+            num_days = len(days)
+            classes_per_student = config["classes_per_student"]
+            min_per_day = config["min_classes_per_day"]
             
-            # Assign Day1 classes
-            day1_classes_list = list(class_data["Day1"].keys())
-            random.shuffle(day1_classes_list)
+            # Calculate distribution
+            remaining_classes = classes_per_student - (min_per_day * num_days)
+            day_targets = {day: min_per_day for day in days}
             
-            for class_name in day1_classes_list:
-                if len(schedule[student]["Day1"]) >= target_day1:
-                    break
-                if class_name in assigned_classes:
-                    continue
-                    
-                # Check if class has capacity remaining
-                if capacity_tracker.get(("Day1", class_name), 0) <= 0:
-                    continue
-                
-                # Find available period (no time conflict)
-                used_periods = [entry["period"] for entry in schedule[student]["Day1"]]
-                available_periods = [
-                    p for p in class_data["Day1"][class_name]["periods"]
-                    if p not in used_periods
-                ]
-                
-                if available_periods:
-                    period = random.choice(available_periods)
-                    schedule[student]["Day1"].append({
-                        "class": class_name,
-                        "period": period
-                    })
-                    assigned_classes.add(class_name)
-                    capacity_tracker[("Day1", class_name)] -= 1
+            # Distribute remaining classes randomly
+            for _ in range(remaining_classes):
+                random_day = random.choice(days)
+                day_targets[random_day] += 1
             
-            # Assign Day2 classes
-            day2_classes_list = list(class_data["Day2"].keys())
-            random.shuffle(day2_classes_list)
-            
-            for class_name in day2_classes_list:
-                if len(schedule[student]["Day2"]) >= target_day2:
-                    break
-                if class_name in assigned_classes:
-                    continue
-                    
-                # Check if class has capacity remaining
-                if capacity_tracker.get(("Day2", class_name), 0) <= 0:
+            # Assign classes for each day
+            for day in days:
+                if day not in class_data:
                     continue
                 
-                # Find available period (no time conflict)
-                used_periods = [entry["period"] for entry in schedule[student]["Day2"]]
-                available_periods = [
-                    p for p in class_data["Day2"][class_name]["periods"]
-                    if p not in used_periods
-                ]
+                target_for_day = day_targets[day]
+                classes_list = list(class_data[day].keys())
+                random.shuffle(classes_list)
                 
-                if available_periods:
-                    period = random.choice(available_periods)
-                    schedule[student]["Day2"].append({
-                        "class": class_name,
-                        "period": period
-                    })
-                    assigned_classes.add(class_name)
-                    capacity_tracker[("Day2", class_name)] -= 1
-            
-            # If we didn't get exactly 5, try to fill up
-            while len(schedule[student]["Day1"]) + len(schedule[student]["Day2"]) < 5:
-                # Try adding to either day
-                for day in ["Day1", "Day2"]:
-                    if len(schedule[student]["Day1"]) + len(schedule[student]["Day2"]) >= 5:
+                for class_name in classes_list:
+                    if len(schedule[student][day]) >= target_for_day:
                         break
-                    if day == "Day1" and len(schedule[student]["Day1"]) >= 5:
+                    if class_name in assigned_classes:
                         continue
-                    if day == "Day2" and len(schedule[student]["Day2"]) >= 5:
+                        
+                    # Check if class has capacity remaining
+                    if capacity_tracker.get((day, class_name), 0) <= 0:
                         continue
+                    
+                    # Find available period (no time conflict)
+                    used_periods = [entry["period"] for entry in schedule[student][day]]
+                    available_periods = [
+                        p for p in class_data[day][class_name]["periods"]
+                        if p not in used_periods
+                    ]
+                    
+                    if available_periods:
+                        period = random.choice(available_periods)
+                        schedule[student][day].append({
+                            "class": class_name,
+                            "period": period
+                        })
+                        assigned_classes.add(class_name)
+                        capacity_tracker[(day, class_name)] -= 1
+            
+            # If we didn't meet the target, try to fill up
+            total_assigned = sum(len(schedule[student][day]) for day in days)
+            while total_assigned < classes_per_student:
+                added = False
+                for day in days:
+                    if day not in class_data:
+                        continue
+                    if total_assigned >= classes_per_student:
+                        break
                         
                     for class_name in class_data[day].keys():
                         if class_name in assigned_classes:
@@ -131,8 +140,13 @@ class SchedulerTool(AbstractTool):
                             })
                             assigned_classes.add(class_name)
                             capacity_tracker[(day, class_name)] -= 1
+                            total_assigned += 1
+                            added = True
                             break
-                else:
+                    if added:
+                        break
+                
+                if not added:
                     # Couldn't add more classes, break out
                     break
 

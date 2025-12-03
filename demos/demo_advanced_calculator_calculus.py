@@ -12,6 +12,7 @@ This serves as a practical tutorial for combining multiple tools under the FAIR-
 """
 
 import asyncio
+import os
 
 # --- Step 1: Import necessary framework components ---
 from fairlib import (
@@ -40,8 +41,10 @@ async def main():
     print("🔧 Initializing the Advanced Calculator + Calculus Agent...")
 
     # === (a) Brain: Language Model ===
-    llm = HuggingFaceAdapter("dolphin3-qwen25-3b")
-    
+    llm = HuggingFaceAdapter(
+            "TinyLlama/TinyLlama-1.1B-Chat-v1.0", 
+            auth_token=os.getenv("HUGGINGFACE_API_KEY")
+        )
     # === (b) Toolbelt: Register both calculator and calculus tools ===
     tool_registry = ToolRegistry()
 

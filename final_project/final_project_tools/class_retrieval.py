@@ -1,4 +1,5 @@
 import json
+import os
 from fairlib import AbstractTool
 
 class ClassRetrievalTool(AbstractTool):
@@ -10,22 +11,17 @@ class ClassRetrievalTool(AbstractTool):
         Returns a JSON string of classes offered each day with maximum student capacities and time periods.
         Format: {"Day": {"ClassName": {"capacity": int, "periods": [period_numbers]}}}
         """
-        class_data = {
-            "Day1": {
-                "Math": {"capacity": 5, "periods": [1, 3, 5]},
-                "Science": {"capacity": 6, "periods": [2, 4]},
-                "History": {"capacity": 4, "periods": [1, 4]},
-                "Art": {"capacity": 5, "periods": [3, 5]},
-                "Music": {"capacity": 5, "periods": [2, 4, 6]},
-                "PE": {"capacity": 8, "periods": [1, 3, 5, 6]},
-            },
-            "Day2": {
-                "Math": {"capacity": 5, "periods": [1, 3, 5]},
-                "Biology": {"capacity": 6, "periods": [2, 4]},
-                "English": {"capacity": 6, "periods": [1, 3, 4]},
-                "ComputerSci": {"capacity": 5, "periods": [2, 5, 6]},
-                "Music": {"capacity": 5, "periods": [3, 4, 6]},
-                "PE": {"capacity": 8, "periods": [1, 2, 5]},
-            },
-        }
+        # Get the path to the class database file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(os.path.dirname(current_dir), "class_database.json")
+        
+        # Load class data from the database file
+        try:
+            with open(db_path, 'r') as f:
+                class_data = json.load(f)
+        except FileNotFoundError:
+            return json.dumps({"error": f"Database file not found at {db_path}"})
+        except json.JSONDecodeError:
+            return json.dumps({"error": "Invalid JSON format in database file"})
+        
         return json.dumps(class_data)
