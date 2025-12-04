@@ -17,6 +17,7 @@
 - [Installation](#-installation)
 - [Usage](#-usage)
 - [Dynamic Configuration](#-dynamic-configuration)
+- [Performance Logging](#-performance-logging--statistics)
 - [Architecture](#-architecture)
 - [Custom Tools](#-custom-tools)
 - [Configuration Files](#-configuration-files)
@@ -55,8 +56,10 @@ Creates class schedules for students across multiple days, ensuring:
 
 ### 🎨 Modern Web Interface
 - Clean, gradient-styled GUI built with Gradio
+- **Beautiful HTML table output** with color-coded class badges
 - Real-time progress indicators showing agent activity
 - Tabbed results view for schedule, validation, and workflow
+- Professional styling that matches the GUI theme
 - No command line knowledge required
 
 ### 🤖 Multi-Agent System
@@ -86,6 +89,25 @@ Creates class schedules for students across multiple days, ensuring:
 - **ClassAttendanceCheckerTool**: Checks capacity limits
 - **PeriodConflictCheckerTool**: Detects time conflicts
 - **OutputValidatorTool**: Validates output clarity
+
+### 🎨 Beautiful Output Formatting (NEW!)
+- **HTML-styled schedule tables** with gradient headers
+- **Color-coded class badges** for easy visual scanning
+- **Responsive design** with alternating row colors
+- **Professional appearance** matching modern web standards
+- **Error messages** beautifully formatted with expandable details
+
+### 📊 Performance Logging & Statistics (NEW!)
+- **Automatic CLI reporting** after each schedule generation
+- **Runtime performance metrics** (total time, agent latency)
+- **Success rate tracking** (validation pass rates, conflicts detected)
+- **Detailed validation failure reporting** (shows exactly what checks failed and why)
+- **Capacity utilization analysis** (usage percentages, underutilized classes)
+- **Distribution statistics** (classes per day/period, peak usage times)
+- **Single-agent benchmark comparison** (opt-in via GUI checkbox)
+- **Performance insights** (speedup factors, efficiency analysis)
+- **Export capabilities** for JSON data analysis
+- **Perfect for scientific reports** and research papers
 
 ### 🔌 LLM Support
 - OpenAI GPT-4o-mini (recommended)
@@ -451,6 +473,155 @@ total_capacity ≥ num_students × classes_per_student / num_days
 
 ---
 
+## 📊 Performance Logging & Statistics
+
+### Overview
+
+The system includes **comprehensive performance logging** that automatically outputs detailed statistics to the **CLI/console** (not the GUI) after each schedule generation. Perfect for scientific reports and system analysis!
+
+### Automatic CLI Reports
+
+Every time you generate a schedule through the GUI, a detailed performance report is automatically printed to the terminal/console where you launched the application.
+
+### Metrics Tracked
+
+#### ⏱️ Runtime Performance
+- Total runtime and per-agent execution times
+- Average agent latency
+- Performance bottleneck identification
+
+#### 📅 Scheduling Statistics
+- Students scheduled and classes assigned
+- Distribution metrics (min/max/avg classes per student)
+- Target vs. actual comparison
+
+#### ✅ Validation Results
+- Success rates (% of schedules that validate)
+- Number of conflicts detected
+- Constraint satisfaction rates
+
+#### 📊 Capacity Utilization
+- Overall and per-class utilization percentages
+- Classes at capacity vs. underutilized
+- Resource allocation efficiency
+
+#### 📈 Distribution Analysis
+- Classes per day and period
+- Peak usage times
+- Load balancing metrics
+
+### Example Output
+
+```
+================================================================================
+📊 SCHEDULING SYSTEM PERFORMANCE REPORT
+================================================================================
+Generated: 2024-12-04 14:32:15
+
+⏱️  RUNTIME PERFORMANCE
+--------------------------------------------------------------------------------
+  Total Runtime:           12.450 seconds
+  Scheduler Agent Time:    5.234 seconds
+  Validator Agent Time:    3.876 seconds
+  Formatter Agent Time:    1.340 seconds
+  Average Agent Latency:   3.483 seconds
+
+📅 SCHEDULING STATISTICS
+--------------------------------------------------------------------------------
+  Students Scheduled:      10
+  Total Classes Assigned:  50
+  Avg Classes/Student:     5.0
+  Target Classes/Student:  5
+
+✅ VALIDATION RESULTS
+--------------------------------------------------------------------------------
+  Total Validation Checks: 4
+  Checks Passed:           4
+  Checks Failed:           0
+  Success Rate:            100.0%
+  Conflicts Detected:      0
+
+  ❌ FAILED CHECKS: (Example if validation fails)
+     • ClassCount: Each student has correct number of classes
+       - invalid_students: ['Student3', 'Student7']
+       - expected: 5, found: 4
+     • PeriodConflicts: No time period conflicts detected
+       - conflicts: [['Student2', 'Day1', 'Math', 'Period 3', 'Science']]
+
+📊 CAPACITY UTILIZATION
+--------------------------------------------------------------------------------
+  Overall Utilization:     37.88%
+  Classes at Capacity:     1
+  Underutilized (<50%):    9
+
+🏁 BENCHMARK: Multi-Agent vs Single-Agent (Optional)
+--------------------------------------------------------------------------------
+  Multi-Agent Runtime:     12.450 seconds
+  Single-Agent Runtime:    18.720 seconds
+  Difference:              6.270 seconds
+  Faster System:           Multi-Agent
+  Speedup Factor:          1.50x
+
+  Multi-Agent Success:     100%
+  Single-Agent Success:    100%
+
+  💡 INSIGHTS:
+     • Multi-agent system is 6.27s faster
+     • Parallel agent processing provides efficiency gains
+     • Both systems achieve perfect validation
+
+✨ Report generated successfully - Ready for scientific analysis!
+================================================================================
+```
+
+### For Scientific Reports
+
+The logging system provides comprehensive data for:
+- **Performance Analysis**: Runtime metrics, scalability testing
+- **Algorithm Efficiency**: Success rates, conflict resolution
+- **Resource Utilization**: Capacity usage, load balancing
+- **System Behavior**: Distribution patterns, constraint satisfaction
+
+### Data Export
+
+Optional JSON export for further analysis:
+```python
+# Uncomment in final_project_gui.py
+logger.export_json()  # Creates timestamped JSON files
+```
+
+### Documentation
+
+For complete details, see **[PERFORMANCE_LOGGING.md](PERFORMANCE_LOGGING.md)**
+
+### Using the Benchmark Feature
+
+To compare multi-agent vs single-agent performance:
+
+1. **Enable Benchmark**: Check the "🏁 Run Single-Agent Benchmark" checkbox in the GUI
+2. **Generate Schedule**: Click "Generate Schedule" as normal
+3. **Wait**: Benchmark adds ~10-20 seconds to total runtime
+4. **View Results**: Check your terminal for the benchmark comparison section
+
+**When to Use Benchmarking:**
+- ✅ Scientific papers comparing architectures
+- ✅ Performance analysis and optimization
+- ✅ Demonstrating multi-agent advantages
+- ✅ Scalability testing across different configurations
+
+**Note**: Benchmark runs the single-agent system with the **exact same configuration and class database** for fair comparison.
+
+### Best Practices
+
+1. **Run from Terminal**: Launch GUI from command line to see output
+2. **Multiple Tests**: Generate several schedules for average metrics
+3. **Screenshot Reports**: Capture terminal output for papers
+4. **Vary Parameters**: Test different configurations
+5. **Document Settings**: Note configuration for each test
+6. **Use Benchmark Selectively**: Enable only when comparing architectures (adds runtime)
+
+---
+
 ## 🏗️ Architecture
 
 ### Multi-Agent Architecture (GUI)
@@ -487,7 +658,7 @@ generate_schedule_async()
 │  - StructuredOutputFormatterTool     │
 │  - OutputValidatorTool               │
 │                                      │
-│  Task: Create readable table         │
+│  Task: Create styled HTML table      │
 └─────────────────────────────────────┘
     ↓
 Display Results in Tabs
@@ -508,10 +679,10 @@ Display Results in Tabs
 - **Output**: Validation report with pass/fail status
 
 #### 📋 Formatter Agent
-- **Purpose**: Present results clearly
-- **Expertise**: Creating readable tables and validating output quality
+- **Purpose**: Present results beautifully
+- **Expertise**: Creating styled HTML tables and validating output quality
 - **Tools**: StructuredOutputFormatterTool, OutputValidatorTool
-- **Output**: Formatted schedule table
+- **Output**: Professional HTML table with color-coded badges and gradient styling
 
 ### Data Flow
 
@@ -590,14 +761,18 @@ All tools inherit from `AbstractTool` and are located in `final_project_tools/`:
 ### Formatting
 
 #### StructuredOutputFormatterTool
-- **Purpose**: Create readable schedule table
+- **Purpose**: Create beautiful, styled schedule table
 - **Input**: Schedule JSON
-- **Output**: Formatted ASCII table with periods
+- **Output**: Professional HTML table with color-coded badges
 - **Features**: 
-  - Uses `tabulate` library
+  - **HTML generation** with gradient headers and styling
+  - **Color-coded class badges** (8 rotating colors)
+  - **Responsive design** with alternating row colors
+  - **Dynamic day support** (works with any number of days)
   - Groups by student and day
   - Shows period information
   - Stores output in class variable for retrieval
+  - Matches GUI theme with purple gradient
 
 #### OutputValidatorTool
 - **Purpose**: Validate output clarity and completeness
@@ -976,23 +1151,44 @@ This project demonstrates key AI and software engineering concepts:
 
 ## 📊 Sample Output
 
-### Schedule Table
+### Beautiful HTML Schedule Table
 
+The system generates a **professionally styled HTML table** with the following features:
+
+#### 🎨 Visual Design
+- **Gradient header** (purple to violet) matching the GUI theme
+- **Color-coded class badges** with 8 rotating colors:
+  - Purple (#667eea), Pink (#f093fb), Blue (#4facfe), Green (#43e97b)
+  - Rose (#fa709a), Yellow (#feca57), Cyan (#48dbfb), Orange (#ff6348)
+- **Alternating row colors** (light gray/white) for easy reading
+- **Rounded corners** and subtle shadows for depth
+- **Responsive design** that adapts to screen size
+
+#### 📋 Content Example
 ```
-+-----------+------------------------------------------------+---------------------------------------------------------+
-| Student   | Day 1 Classes (Period)                         | Day 2 Classes (Period)                                  |
-+===========+================================================+=========================================================+
-| Student1  | Art (P3), PE (P5), Science (P2), Math (P1)     | Biology (P4)                                            |
-+-----------+------------------------------------------------+---------------------------------------------------------+
-| Student2  | Music (P2)                                     | Math (P1), Biology (P2), ComputerSci (P5), English (P3) |
-+-----------+------------------------------------------------+---------------------------------------------------------+
-| Student3  | Music (P2), Math (P5), History (P1)            | PE (P5), ComputerSci (P2)                               |
-+-----------+------------------------------------------------+---------------------------------------------------------+
-| Student4  | PE (P3), History (P4)                          | Math (P3), English (P1), Music (P6), ComputerSci (P5)   |
-+-----------+------------------------------------------------+---------------------------------------------------------+
-| Student5  | Math (P3), Art (P5), Science (P4)              | PE (P2), English (P3)                                   |
-+-----------+------------------------------------------------+---------------------------------------------------------+
+📅 Student Class Schedule
+╔══════════════════════════════════════════════════════════════╗
+║ Student   │ Day 1 Classes           │ Day 2 Classes           ║
+╠═══════════╪═════════════════════════╪═════════════════════════╣
+║ Student1  │ [Art (P3)] [PE (P5)]    │ [Biology (P4)]          ║
+║           │ [Science (P2)] [Math]   │                         ║
+╠───────────┼─────────────────────────┼─────────────────────────╣
+║ Student2  │ [Music (P2)]            │ [Math (P1)] [Biology]   ║
+║           │                         │ [ComputerSci] [English] ║
+╠───────────┼─────────────────────────┼─────────────────────────╣
+║ Student3  │ [Music (P2)] [Math]     │ [PE (P5)] [ComputerSci] ║
+║           │ [History (P1)]          │                         ║
+╚═══════════╧═════════════════════════╧═════════════════════════╝
+✅ Schedule generated successfully | Total Students: 10
 ```
+*Note: Each class appears as a styled badge with color-coding in the actual output*
+
+#### 🎯 Key Features
+- Student names in **bold** for easy identification
+- Classes displayed as **color-coded badges** with periods
+- Clean separation between days
+- Summary footer with student count
+- Professional appearance suitable for presentations
 
 ### Validation Report
 

@@ -20,24 +20,31 @@ class OutputValidatorTool(AbstractTool):
         4. Data is complete and not truncated
         
         Args:
-            tool_input: JSON string containing 'schedule' and 'formatted_output'
+            tool_input: JSON string or dict containing 'schedule' and 'formatted_output'
             
         Returns:
             JSON validation report with score and feedback
         """
         try:
-            tool_input = tool_input.strip()
-            decoder = json.JSONDecoder()
-            data, idx = decoder.raw_decode(tool_input)
+            # Handle both string and dict inputs
+            if isinstance(tool_input, dict):
+                data = tool_input
+            elif isinstance(tool_input, str):
+                tool_input = tool_input.strip()
+                decoder = json.JSONDecoder()
+                data, idx = decoder.raw_decode(tool_input)
+            else:
+                return json.dumps({"valid": False, "clarity_score": 0, "summary": "Invalid input type", "issues": ["Input must be string or dict"], "suggestions": []})
             
             # Handle schedule - it might be a string or already parsed
             schedule_data = data.get("schedule", "{}")
             if isinstance(schedule_data, str):
+                decoder = json.JSONDecoder()
                 schedule, _ = decoder.raw_decode(schedule_data)
             else:
                 schedule = schedule_data
             formatted_output = data.get("formatted_output", "")
-        except (json.JSONDecodeError, ValueError) as e:
+        except (json.JSONDecodeError, ValueError, AttributeError) as e:
             return json.dumps({"valid": False, "clarity_score": 0, "summary": f"Error parsing input: {str(e)}", "issues": [str(e)], "suggestions": []})
         
         issues = []

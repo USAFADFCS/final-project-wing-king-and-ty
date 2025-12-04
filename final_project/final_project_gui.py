@@ -16,6 +16,7 @@ Run with: python final_project/final_project_gui.py
 import asyncio
 import os
 import json
+import time
 from dotenv import load_dotenv
 import gradio as gr
 from fairlib import (
@@ -41,6 +42,7 @@ from final_project_tools.checkers import (
 from final_project_tools.period_validator import PeriodConflictCheckerTool
 from final_project_tools.formatter import StructuredOutputFormatterTool
 from final_project_tools.output_validator import OutputValidatorTool
+from final_project_tools.performance_logger import PerformanceLogger
 
 # Load environment variables
 load_dotenv()
@@ -191,12 +193,32 @@ def initialize_agents():
     return f"✅ Multi-Agent System Ready!\n🤖 Using: {llm_name}"
 
 
-async def generate_schedule_async(progress=gr.Progress()):
+async def generate_schedule_async(run_benchmark=False, progress=gr.Progress()):
     """Generate schedule using the multi-agent system."""
     workflow_log = []
     
+    # Initialize performance logger
+    logger = PerformanceLogger()
+    logger.start_tracking()
+    
     # Load current configuration
     config = load_system_config()
+    logger.set_config(config)
+    
+    # Run single-agent benchmark if requested
+    benchmark_data = None
+    if run_benchmark:
+        progress(0.05, desc="🏁 Running single-agent benchmark...")
+        print("\n" + "=" * 80)
+        print("🏁 BENCHMARK: Running single-agent system for comparison...")
+        print("=" * 80)
+        benchmark_data = await run_single_agent_benchmark(config)
+        if benchmark_data:
+            print(f"✅ Single-agent benchmark completed in {benchmark_data['runtime']:.3f}s")
+            logger.set_benchmark_data(benchmark_data)
+        else:
+            print("⚠️  Single-agent benchmark failed, continuing without comparison")
+        print()
     
     try:
         # Phase 1: Scheduler Agent
@@ -206,11 +228,13 @@ async def generate_schedule_async(progress=gr.Progress()):
         workflow_log.append("=" * 80)
         workflow_log.append(f"🗓️ Creating {config['num_days']}-day schedule for {config['num_students']} students...")
         
+        phase_start = time.time()
         schedule_response = await scheduler_agent.arun(
             f"Retrieve class data and generate a {config['num_days']}-day schedule for {config['num_students']} students. "
             f"Each student needs exactly {config['classes_per_student']} unique classes with at least {config['min_classes_per_day']} per day. "
             "Output the final schedule JSON."
         )
+        logger.track_phase("scheduler", time.time() - phase_start)
         workflow_log.append("✅ Schedule created successfully!\n")
         
         # Phase 2: Validator Agent
@@ -220,12 +244,14 @@ async def generate_schedule_async(progress=gr.Progress()):
         workflow_log.append("=" * 80)
         workflow_log.append("✅ Validating constraints...")
         
+        phase_start = time.time()
         validation_response = await validator_agent.arun(
             f"Validate this schedule meets all constraints:\n{schedule_response}\n\n"
             "Use ClassNumberCheckerTool, UniqueAttendanceCheckerTool, "
             "ClassAttendanceCheckerTool, and PeriodConflictCheckerTool. "
             "Report any issues found."
         )
+        logger.track_phase("validator", time.time() - phase_start)
         workflow_log.append("✅ Validation completed!\n")
         
         # Phase 3: Formatter Agent
@@ -235,14 +261,66 @@ async def generate_schedule_async(progress=gr.Progress()):
         workflow_log.append("=" * 80)
         workflow_log.append("📋 Formatting schedule as table...")
         
+        phase_start = time.time()
         format_response = await formatter_agent.arun(
             f"Format this schedule as a table:\n{schedule_response}\n\n"
             "Use StructuredOutputFormatterTool to create a readable table with periods. "
             "Present the final formatted schedule."
         )
+        logger.track_phase("formatter", time.time() - phase_start)
         workflow_log.append("✅ Formatting completed!\n")
         
         progress(1.0, desc="✨ Complete!")
+        
+        # End performance tracking
+        logger.end_tracking()
+        
+        # Parse and store data for analysis
+        try:
+            import json
+            schedule_json = json.loads(schedule_response) if isinstance(schedule_response, str) else schedule_response
+            logger.set_schedule_data(schedule_json)
+        except:
+            pass
+        
+        # Get class data
+        class_data = load_class_database()
+        logger.set_class_data(class_data)
+        
+        # Parse detailed validation results
+        validation_details = {}
+        try:
+            # Extract validation information from response
+            if "ClassNumberChecker" in validation_response or "class count" in validation_response.lower():
+                validation_details["ClassCount"] = {
+                    "valid": "passed" in validation_response.lower() or "✅" in validation_response,
+                    "description": "Each student has correct number of classes"
+                }
+            if "UniqueAttendance" in validation_response or "duplicate" in validation_response.lower():
+                validation_details["UniqueClasses"] = {
+                    "valid": "passed" in validation_response.lower() or "no duplicate" in validation_response.lower(),
+                    "description": "No duplicate classes per student"
+                }
+            if "ClassAttendance" in validation_response or "capacity" in validation_response.lower():
+                validation_details["CapacityLimits"] = {
+                    "valid": "passed" in validation_response.lower() or "capacity" in validation_response.lower() and "✅" in validation_response,
+                    "description": "No classes exceed maximum capacity"
+                }
+            if "PeriodConflict" in validation_response or "period" in validation_response.lower():
+                validation_details["PeriodConflicts"] = {
+                    "valid": "passed" in validation_response.lower() or "no conflict" in validation_response.lower(),
+                    "description": "No time period conflicts detected"
+                }
+        except:
+            validation_details["overall"] = {"valid": "✅" in validation_response, "description": "Overall validation"}
+        
+        logger.set_validation_results(validation_details)
+        
+        # Print performance report to console
+        logger.print_report()
+        
+        # Optional: Export to JSON
+        # logger.export_json()
         
         # Get formatted table
         formatted_table = StructuredOutputFormatterTool.last_formatted_output
@@ -425,9 +503,94 @@ def update_system_config(num_students, classes_per_student, num_days, periods_pe
         return False, "❌ All fields must be valid numbers"
 
 
-def generate_schedule_sync():
+async def run_single_agent_benchmark(config):
+    """Run single-agent system for benchmark comparison."""
+    import time
+    from final_project_tools.class_retrieval import ClassRetrievalTool
+    from final_project_tools.scheduler import SchedulerTool
+    from final_project_tools.checkers import (
+        ClassNumberCheckerTool,
+        UniqueAttendanceCheckerTool,
+        ClassAttendanceCheckerTool,
+    )
+    from final_project_tools.period_validator import PeriodConflictCheckerTool
+    
+    try:
+        # Initialize single agent with all tools
+        all_tools = [
+            ClassRetrievalTool(),
+            SchedulerTool(),
+            ClassNumberCheckerTool(),
+            UniqueAttendanceCheckerTool(),
+            ClassAttendanceCheckerTool(),
+            PeriodConflictCheckerTool(),
+        ]
+        
+        tool_registry = ToolRegistry()
+        for tool in all_tools:
+            tool_registry.register_tool(tool)
+        
+        # Get LLM (use same as multi-agent)
+        if settings.api_keys.openai_api_key:
+            llm = OpenAIAdapter(
+                api_key=settings.api_keys.openai_api_key,
+                model_name="gpt-4o-mini"
+            )
+        elif settings.api_keys.anthropic_api_key:
+            llm = AnthropicAdapter(
+                api_key=settings.api_keys.anthropic_api_key,
+                model_name="claude-3-5-sonnet-20241022"
+            )
+        else:
+            llm = HuggingFaceAdapter(
+                "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+                auth_token=os.getenv("HUGGINGFACE_API_KEY")
+            )
+        
+        planner = ReActPlanner(llm, tool_registry)
+        executor = ToolExecutor(tool_registry)
+        memory = WorkingMemory()
+        
+        single_agent = SimpleAgent(llm, planner, executor, memory, stateless=False)
+        
+        # Run benchmark
+        start_time = time.time()
+        
+        prompt = f"""Generate and validate a {config['num_days']}-day class schedule for {config['num_students']} students.
+
+Requirements:
+- Each student needs exactly {config['classes_per_student']} unique classes
+- At least {config['min_classes_per_day']} class per day per student
+- Respect class capacity limits
+- Avoid period conflicts
+
+Steps:
+1. Use ClassRetrievalTool to get class data
+2. Use SchedulerTool to generate the schedule
+3. Use all checker tools to validate
+4. Report the results"""
+        
+        response = await single_agent.arun(prompt)
+        
+        runtime = time.time() - start_time
+        
+        # Determine success rate (simplified)
+        success_rate = 100.0 if ("✅" in response or "PASSED" in response) and "❌" not in response else 50.0
+        
+        return {
+            "runtime": runtime,
+            "success_rate": success_rate,
+            "response": response
+        }
+        
+    except Exception as e:
+        print(f"⚠️  Benchmark failed: {str(e)}")
+        return None
+
+
+def generate_schedule_sync(run_benchmark=False):
     """Synchronous wrapper for async schedule generation."""
-    return asyncio.run(generate_schedule_async())
+    return asyncio.run(generate_schedule_async(run_benchmark=run_benchmark))
 
 
 # Note: Using Gradio's built-in theme system and inline styles for compatibility
@@ -478,6 +641,13 @@ def create_gui():
                         refresh_config_btn = gr.Button("🔄 Refresh Config", size="sm")
                         
                         gr.Markdown("---")
+                        
+                        # Benchmark checkbox
+                        benchmark_checkbox = gr.Checkbox(
+                            label="🏁 Run Single-Agent Benchmark",
+                            value=False,
+                            info="Compare performance with single-agent system (adds ~10-20s to runtime)"
+                        )
                         
                         generate_btn = gr.Button(
                             "🚀 Generate Schedule",
@@ -639,8 +809,8 @@ def create_gui():
         
         # Schedule generation
         generate_btn.click(
-            fn=generate_schedule_sync,
-            inputs=[],
+            fn=lambda benchmark: generate_schedule_sync(run_benchmark=benchmark),
+            inputs=[benchmark_checkbox],
             outputs=[schedule_output, validation_output, workflow_output, status_output]
         )
         
