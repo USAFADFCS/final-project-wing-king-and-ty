@@ -248,7 +248,14 @@ async def generate_schedule_async(progress=gr.Progress()):
         formatted_table = StructuredOutputFormatterTool.last_formatted_output
         
         if not formatted_table:
-            formatted_table = "⚠️ Table formatting failed. See raw schedule below.\n\n" + schedule_response
+            # Fallback HTML formatting
+            formatted_table = f"""
+            <div style="padding: 30px; background: #fef5e7; border-left: 5px solid #f39c12; border-radius: 8px; font-family: 'Segoe UI', sans-serif;">
+                <h3 style="color: #d68910; margin: 0 0 15px 0;">⚠️ Table Formatting Issue</h3>
+                <p style="color: #7d6608; margin: 10px 0;">The schedule was generated but formatting failed. Raw schedule data:</p>
+                <pre style="background: white; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; margin-top: 10px; color: #2d3748;">{schedule_response}</pre>
+            </div>
+            """
         
         workflow_summary = "\n".join(workflow_log)
         
@@ -263,8 +270,21 @@ async def generate_schedule_async(progress=gr.Progress()):
         error_msg = f"❌ Error: {str(e)}"
         import traceback
         traceback_str = traceback.format_exc()
+        
+        # Format error as HTML
+        error_html = f"""
+        <div style="padding: 30px; background: #fee; border-left: 5px solid #f56565; border-radius: 8px; font-family: 'Segoe UI', sans-serif;">
+            <h3 style="color: #c53030; margin: 0 0 15px 0;">❌ Schedule Generation Failed</h3>
+            <p style="color: #742a2a; margin: 10px 0;"><strong>Error:</strong> {str(e)}</p>
+            <details style="margin-top: 15px;">
+                <summary style="cursor: pointer; color: #742a2a; font-weight: 600;">View Technical Details</summary>
+                <pre style="background: #fff; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; margin-top: 10px; color: #2d3748;">{traceback_str}</pre>
+            </details>
+        </div>
+        """
+        
         return (
-            f"❌ Failed to generate schedule:\n{error_msg}",
+            error_html,
             f"❌ Validation not performed due to error",
             f"{error_msg}\n\nTraceback:\n{traceback_str}",
             error_msg
@@ -366,6 +386,12 @@ Number of Days: {config.get('num_days', 'N/A')}
 Periods per Day: {config.get('periods_per_day', 'N/A')}
 Minimum Classes per Day: {config.get('min_classes_per_day', 'N/A')}
 """
+
+
+def get_system_config_display_dual():
+    """Get formatted display for both config textboxes (returns same value twice)."""
+    display = get_system_config_display()
+    return display, display
 
 
 def update_system_config(num_students, classes_per_student, num_days, periods_per_day, min_classes_per_day):
@@ -472,12 +498,9 @@ def create_gui():
                 
                 with gr.Tabs():
                     with gr.Tab("📅 Schedule"):
-                        schedule_output = gr.Textbox(
+                        schedule_output = gr.HTML(
                             label="Generated Schedule",
-                            placeholder="Schedule will appear here...",
-                            lines=25,
-                            max_lines=30,
-                            interactive=False
+                            value="<div style='text-align: center; padding: 40px; color: #718096;'>Click 'Generate Schedule' to create a schedule...</div>"
                         )
                     
                     with gr.Tab("✅ Validation"):
@@ -673,7 +696,7 @@ def create_gui():
             ],
             outputs=[config_status]
         ).then(
-            fn=get_system_config_display,
+            fn=get_system_config_display_dual,
             inputs=[],
             outputs=[sys_config_display, config_display]
         )

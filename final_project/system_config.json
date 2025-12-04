@@ -1,7 +1,7 @@
 {
-    "num_students": 8,
+    "num_students": 10,
     "classes_per_student": 5,
     "num_days": 2,
-    "periods_per_day": 5,
-    "min_classes_per_day": 2
+    "periods_per_day": 6,
+    "min_classes_per_day": 1
 }
