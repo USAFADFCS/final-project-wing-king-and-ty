@@ -5,7 +5,7 @@ from fairlib import AbstractTool
 
 class SchedulerTool(AbstractTool):
     name = "SchedulerTool"
-    description = "Generates a schedule for students with period assignments. Dynamically adapts to system configuration. Input: JSON string of class_data from ClassRetrievalTool."
+    description = "Generates a schedule for students with period assignments. Reads configuration from system_config.json (number of students, classes per student, etc.). Input: JSON string of class_data from ClassRetrievalTool (with Day1, Day2 structure). Note: Do NOT pass student count - it's loaded automatically from config."
 
     def use(self, tool_input: str) -> str:
         """
@@ -19,7 +19,15 @@ class SchedulerTool(AbstractTool):
         try:
             tool_input = tool_input.strip()
             decoder = json.JSONDecoder()
-            class_data, idx = decoder.raw_decode(tool_input)
+            parsed_input, idx = decoder.raw_decode(tool_input)
+            
+            # Handle case where agent passes {"students": X, "classes": {...}}
+            # We only need the class_data part
+            if isinstance(parsed_input, dict) and "classes" in parsed_input:
+                class_data = parsed_input["classes"]
+            else:
+                class_data = parsed_input
+                
         except (json.JSONDecodeError, ValueError) as e:
             return json.dumps({"error": f"JSON parsing error: {str(e)}"})
         

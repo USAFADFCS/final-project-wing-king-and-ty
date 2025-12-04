@@ -1,4 +1,5 @@
 import json
+import os
 from fairlib import AbstractTool
 
 class OutputValidatorTool(AbstractTool):
@@ -14,7 +15,7 @@ class OutputValidatorTool(AbstractTool):
         Validates the schedule output for clarity and comprehensibility.
         
         Checks:
-        1. All 10 students are present
+        1. All students are present (based on config)
         2. Each student has classes for both days
         3. The format is readable (table structure)
         4. Data is complete and not truncated
@@ -31,35 +32,66 @@ class OutputValidatorTool(AbstractTool):
                 data = tool_input
             elif isinstance(tool_input, str):
                 tool_input = tool_input.strip()
-                decoder = json.JSONDecoder()
-                data, idx = decoder.raw_decode(tool_input)
+                # Try to parse as JSON, be more forgiving
+                try:
+                    decoder = json.JSONDecoder()
+                    data, idx = decoder.raw_decode(tool_input)
+                except json.JSONDecodeError:
+                    # If that fails, try standard json.loads
+                    data = json.loads(tool_input)
             else:
                 return json.dumps({"valid": False, "clarity_score": 0, "summary": "Invalid input type", "issues": ["Input must be string or dict"], "suggestions": []})
             
             # Handle schedule - it might be a string or already parsed
             schedule_data = data.get("schedule", "{}")
             if isinstance(schedule_data, str):
-                decoder = json.JSONDecoder()
-                schedule, _ = decoder.raw_decode(schedule_data)
+                try:
+                    # Try standard parsing first
+                    schedule = json.loads(schedule_data)
+                except json.JSONDecodeError:
+                    try:
+                        # Fall back to raw_decode
+                        decoder = json.JSONDecoder()
+                        schedule, _ = decoder.raw_decode(schedule_data)
+                    except:
+                        # Last resort: assume it's already a dict or empty
+                        schedule = {}
             else:
                 schedule = schedule_data
             formatted_output = data.get("formatted_output", "")
-        except (json.JSONDecodeError, ValueError, AttributeError) as e:
+        except Exception as e:
             return json.dumps({"valid": False, "clarity_score": 0, "summary": f"Error parsing input: {str(e)}", "issues": [str(e)], "suggestions": []})
         
         issues = []
         suggestions = []
         
-        # Check 1: Verify all 10 students are present
-        if len(schedule) != 10:
-            issues.append(f"Expected 10 students, found {len(schedule)}")
+        # Load system configuration to get expected values
+        try:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(os.path.dirname(current_dir), "system_config.json")
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            expected_students = config.get("num_students", 10)
+            expected_classes = config.get("classes_per_student", 5)
+            expected_days = config.get("num_days", 2)
+        except:
+            # Default values if config not found
+            expected_students = 10
+            expected_classes = 5
+            expected_days = 2
         
-        # Check 2: Verify each student has both days
+        # Check 1: Verify all expected students are present
+        if len(schedule) != expected_students:
+            issues.append(f"Expected {expected_students} students, found {len(schedule)}")
+        
+        # Check 2: Verify each student has all expected days
+        day_keys = [f"Day{i}" for i in range(1, expected_days + 1)]
         for student, days in schedule.items():
-            if "Day1" not in days or "Day2" not in days:
-                issues.append(f"{student} is missing day information")
-            elif not days["Day1"] or not days["Day2"]:
-                issues.append(f"{student} has empty classes for one or both days")
+            for day_key in day_keys:
+                if day_key not in days:
+                    issues.append(f"{student} is missing {day_key} information")
+                elif not days[day_key]:
+                    issues.append(f"{student} has empty classes for {day_key}")
         
         # Check 3: Verify formatted output exists and has content
         if not formatted_output or len(formatted_output) < 100:
@@ -82,11 +114,9 @@ class OutputValidatorTool(AbstractTool):
         # Check 5: Verify class distribution
         total_classes = 0
         for student, days in schedule.items():
-            day1_count = len(days.get("Day1", []))
-            day2_count = len(days.get("Day2", []))
-            student_classes = day1_count + day2_count
-            if student_classes != 5:
-                issues.append(f"{student} has {student_classes} classes instead of 5")
+            student_classes = sum(len(days.get(day_key, [])) for day_key in day_keys)
+            if student_classes != expected_classes:
+                issues.append(f"{student} has {student_classes} classes instead of {expected_classes}")
             total_classes += student_classes
         
         # Check 6: Verify period information is included if using new format
